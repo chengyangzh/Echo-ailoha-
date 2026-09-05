@@ -8,7 +8,8 @@ from ..frames import analogy_search_properties
 from ..tooling import Tool, ToolSpec
 
 
-CORE_COVERAGE_THRESHOLD = 0.30
+CORE_COVERAGE_THRESHOLD = 0.48
+CORE_MECHANISM_COVERAGE_THRESHOLD = 0.67
 
 
 class SearchTool(Tool):
@@ -93,11 +94,6 @@ class SearchTool(Tool):
             canonical_mechanisms, mechanism_mapped, mechanism_unknown = normalize_mechanisms(mechanisms)
             canonical_domains, domain_mapped, domain_unknown = normalize_domains(domains)
 
-            # The Core Atlas has a finite taxonomy, but provider-facing semantic labels are
-            # intentionally open. If a domain needed aliasing or was unknown, do not turn it
-            # into a hard filter: that would let the source topic (e.g. cybersecurity) suppress
-            # the far-domain analogies Echo is meant to discover. Canonical domain names are
-            # still honored when the user/model deliberately supplies the Atlas vocabulary.
             effective_domains = canonical_domains
             domain_filter_relaxed = bool(domain_mapped or domain_unknown)
             if domain_filter_relaxed:
@@ -164,6 +160,10 @@ class SearchTool(Tool):
                 list((top.get("evidence") or {}).get("matched_mechanisms") or [])
                 if top else []
             )
+            mechanism_coverage = (
+                len(set(matched_mechanisms)) / len(set(canonical_mechanisms))
+                if canonical_mechanisms else 0.0
+            )
             weak_reasons: list[str] = []
             if not candidates:
                 weak_reasons.append("no_candidates")
@@ -171,18 +171,25 @@ class SearchTool(Tool):
                 weak_reasons.append("low_structural_score")
             if canonical_mechanisms and not matched_mechanisms:
                 weak_reasons.append("no_core_mechanism_match")
+            elif canonical_mechanisms and mechanism_coverage < CORE_MECHANISM_COVERAGE_THRESHOLD:
+                weak_reasons.append("partial_mechanism_coverage")
+            if mechanism_unknown:
+                weak_reasons.append("unmapped_causal_mechanism")
 
             coverage = {
                 "status": "weak" if weak_reasons else "strong",
                 "top_structural_score": round(top_score, 4),
                 "threshold": CORE_COVERAGE_THRESHOLD,
                 "matched_mechanisms": matched_mechanisms,
+                "mechanism_coverage": round(mechanism_coverage, 4),
+                "mechanism_coverage_threshold": CORE_MECHANISM_COVERAGE_THRESHOLD,
+                "unmapped_mechanisms": mechanism_unknown,
                 "reasons": weak_reasons,
             }
             if weak_reasons:
                 notices.append(
                     "Core Atlas coverage is weak under the deterministic coverage check; "
-                    "widen candidate discovery to Wikipedia before concluding."
+                    "widen candidate discovery to Wikipedia before concluding, or use a clearly labeled constructed analogy if no retrieved case survives semantic review."
                 )
 
             return {

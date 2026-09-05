@@ -2,7 +2,7 @@
 
 > **Search by structure, not by words.**
 
-Echo is a minimal analogical reasoning agent. Give it a situation, dilemma, failure, strategy, conflict, or surprising outcome and it searches for cases with a similar **causal structure**, even when the surface vocabulary and domain are very different. A new concrete situation is treated as an implicit analogy request: Echo retrieves candidates, inspects evidence, compares mechanisms, and returns the strongest analogy it found together with the point where the analogy stops transferring.
+Echo is a minimal analogical reasoning agent. Give it a situation, dilemma, failure, strategy, conflict, or surprising outcome and it searches for a **clean structural analogy**, not merely the most famous or lexically similar case. A new concrete situation is treated as an implicit analogy request. Echo first probes a curated Core Atlas, widens to Wikipedia when the finite atlas is structurally incomplete, and can reject retrieval entirely in favor of a freshly **constructed cross-domain analogy** when that produces a cleaner mapping. Every substantive analogy is checked for unsupported assumptions, relational coverage, and a clear break before it is returned.
 
 ```text
 many false alerts
@@ -22,7 +22,7 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 
 export GROQ_API_KEY='YOUR_KEY'
-export GROQ_MODEL='openai/gpt-oss-20b'   # optional; this is the default
+export GROQ_MODEL='openai/gpt-oss-120b'  # optional; quality-first default
 
 agent-harness --user user-a --session window-1
 ```
@@ -54,7 +54,7 @@ User
   ↓
 AgentRuntime
   ├── ContextManager ── summary + recent window + active board
-  ├── ResponsesClient ─ direct answer OR typed function call
+  ├── ResponsesClient ─ GPT-OSS 120B, high reasoning, typed function calls
   ├── ToolRegistry ──── calculator / search / read_case / analogy_board
   │       └── search/read_case ── Core Atlas OR Wikipedia adapter
   ├── SQLiteStore ───── (user_id, session_id)
@@ -62,6 +62,8 @@ AgentRuntime
            ↑
        tool result
            └──────────── loop
+
+After an analogy draft is produced, a no-tool **quality review** can replace it entirely if the retrieved case is strained. The runtime then persists only the reviewed answer.
 ```
 
 The LLM chooses the next action; the runtime owns validation, execution, state, context, persistence, and termination.
@@ -73,18 +75,24 @@ Conceptually:
 ```python
 for iteration in range(MAX_ITERATIONS):
     maybe_compress()
-    decision = llm.decide(context, tool_schemas)
+    decision = llm.decide(context, available_tool_schemas)
 
     if decision.tool_calls:
-        results = validate_and_execute(decision.tool_calls)
+        results = validate_budget_execute(decision.tool_calls)
         add_tool_observations_to_context(results)
         continue
 
     if decision.final_text:
-        persist_and_return(decision.final_text)
+        if weak_core_requires_widening():
+            continue
+        draft = decision.final_text
+        reviewed = quality_review(draft, tools=[])
+        persist_and_return(reviewed)
+
+# reserved no-tool synthesis / bounded rescue if needed
 ```
 
-Echo uses the Responses-style function-calling interface through the OpenAI Python SDK pointed at Groq's Responses-compatible endpoint. The model returns typed `function_call` objects; the runtime validates and executes them, then places the resulting observation into the next context it constructs. Each iteration is a fresh provider request: Echo deliberately keeps conversation continuity in SQLite and does not rely on provider-hosted conversation state or `previous_response_id`.
+Echo uses the Responses-style function-calling interface through the OpenAI Python SDK pointed at Groq's Responses-compatible endpoint. The quality-first default is `openai/gpt-oss-120b` with `reasoning={"effort": "high"}` for decision turns; `GROQ_MODEL` can still override the model. The model returns typed `function_call` objects; the runtime validates and executes them, then places the resulting observation into the next context it constructs. Each iteration is a fresh provider request: Echo deliberately keeps conversation continuity in SQLite and does not rely on provider-hosted conversation state or `previous_response_id`.
 
 The protocol reference is the OpenAI Responses/function-calling API:
 
@@ -130,18 +138,27 @@ situation
   ↓
 working AnalogyFrame
   ↓
-search
+Core search
   ↓
-candidate cases
-  ↓
-read_case
-  ↓
-compare / reject / revise
-  ↓
-analogy + mapping + where it breaks
+inspect / compare
+  ├── clean retrieved case ───────────────┐
+  └── weak / assumption-heavy candidate   │
+              ↓                            │
+      Wikipedia widening                   │
+              ↓                            │
+      inspect / reject / revise            │
+              ├── clean external case ─────┤
+              └── still weak               │
+                     ↓                     │
+           construct fresh analogy         │
+                     └──────────────┬───────┘
+                                    ↓
+                             quality review
+                                    ↓
+                      mapping + mechanism + break
 ```
 
-Search and inspection are intentionally separate. A retrieved candidate is not evidence that the analogy is valid; a candidate must be inspected with `read_case` before Echo can endorse it.
+Search and inspection are intentionally separate. A retrieved candidate is not evidence that the analogy is valid; a candidate must be inspected with `read_case` before Echo can endorse it. Retrieval is also **not mandatory as the final answer source**: if all named cases are strained, Echo may construct a system analogy directly from the abstract causal pattern, while clearly distinguishing that construction from retrieved evidence.
 
 ### External search boundary
 
@@ -167,9 +184,23 @@ bounded source evidence
 LLM decides whether the causal structure actually matches
 ```
 
-A Wikipedia hit is **not** silently normalized into a CaseCard and is never treated as a validated analogy. The adapter owns network I/O and provenance; the LLM owns relational judgment. Echo starts with the controlled atlas and runs a small deterministic coverage check on the best Core result. Coverage is considered weak when the top structural score falls below `0.30`, or when a supplied canonical mechanism has no match. In that case the runtime will not accept a final answer until the model has attempted `search(source="wikipedia")`; the model still chooses the Wikipedia query, which candidate to inspect, and whether the external evidence actually supports the analogy. A failed Wikipedia request counts as an attempt so network problems cannot trap the loop. Retrieval failure is not treated as evidence that no historical analogue exists.
+A Wikipedia hit is **not** silently normalized into a CaseCard and is never treated as a validated analogy. The adapter owns network I/O and provenance; the LLM owns relational judgment. Echo treats the Core Atlas as a **seed set, not a closed world**. The deterministic coverage gate now marks Core coverage weak when the best structural score is below `0.48`, when less than roughly two-thirds of the supplied canonical mechanisms are preserved, or when an important open mechanism cannot be mapped into the finite Atlas vocabulary. Weak coverage requires at least one mechanism-oriented Wikipedia discovery attempt before a normal final answer. The model is instructed to search the abstract mechanism or a hypothesized target concept rather than paraphrasing the user's surface nouns. A failed Wikipedia request still counts as an attempt so network problems cannot trap the loop. Retrieval failure is not treated as evidence that no useful analogy exists: Echo can switch to a clearly labeled constructed analogy.
 
 Wikisource, live-news search, embeddings, and a vector database are intentionally outside the current search boundary. They could expand coverage, but they are not necessary to preserve Echo's central distinction between candidate retrieval and structural judgment.
+
+### Analogy quality gate
+
+Echo intentionally separates **candidate generation** from **answer acceptance**. A famous or high-scoring case can still be rejected if the mapping needs facts that were never present in the user's situation. The final quality review applies four practical checks:
+
+1. at least three meaningful relational or causal correspondences;
+2. no central hidden motive, event, or constraint invented merely to make the analogy fit;
+3. a shared mechanism that can be stated without relying on the same surface nouns;
+4. one explicit place where the analogy stops transferring.
+
+This matters for cases like a betrayal scenario that superficially resembles the Trojan Horse: if the source never says there was long-term disguise or planned infiltration, Echo should not invent those premises just to use a famous story. In that situation the reviewer can discard the retrieved draft and construct a cleaner cross-domain analogy instead.
+
+Production execution also has a small search budget: one Core search, at most two Wikipedia searches, and at most three case inspections per user turn. This prevents repeated query-rewording from consuming the whole loop. The last normal iteration exposes **no tools** and forces synthesis from existing evidence; if a provider still returns no usable text, the runtime makes two additional bounded no-tool rescue attempts. Therefore a normal search loop no longer ends with a user-visible `ran out of 8 iterations` message.
+
 
 ### Analogy evaluation
 
@@ -192,7 +223,7 @@ See [`docs/EVALUATION_DESIGN.md`](docs/EVALUATION_DESIGN.md) for the controlled 
 
 The active **Analogy Board** is stored separately from transcript text. It can retain the current situation, working frame, selected/rejected candidates, mapping notes, and where an analogy breaks. On a fresh decision it is injected before the session summary, so transcript compression can remove verbose old dialogue without erasing a decision that should survive follow-up.
 
-Two lightweight guards keep this reasoning loop productive. First, an exact successful tool call cannot be immediately repeated without progress. Second, if a later search returns no unseen candidate IDs, the runtime marks the search as saturated and asks the model to inspect an existing candidate, materially revise the frame, or widen the source rather than cosmetically rewriting the same query.
+Several lightweight guards keep this reasoning loop productive. An exact successful tool call cannot be immediately repeated; searches that return no unseen candidates are marked saturated; weak Core coverage requires external widening; retrieved claims require an inspected case; and per-turn tool budgets prevent cosmetic query rewrites. These guards constrain execution without hard-coding which candidate the model must choose.
 
 ## Session model
 
@@ -259,7 +290,7 @@ Echo does not request, expose, or persist hidden chain-of-thought. Durable state
 
 ## Error handling
 
-Handled failure modes include unknown tools, JSON Schema validation failures, tool-specific validation errors, arithmetic errors, unexpected internal tool exceptions, empty model decisions, repeated/no-progress actions, provider/network failures at the CLI boundary, and infinite-loop protection through `max_iterations=8`. A recoverable tool failure becomes an observation that the model can reason over instead of crashing the session; provider failures do not erase already persisted session state.
+Handled failure modes include unknown tools, JSON Schema validation failures, tool-specific validation errors, arithmetic errors, unexpected internal tool exceptions, empty model decisions, repeated/no-progress actions, exhausted search/read budgets, provider/network failures at the CLI boundary, and bounded termination through `max_iterations=8`. The final normal iteration is reserved for no-tool synthesis, followed by bounded rescue synthesis only if the provider returned no usable text. A recoverable tool failure becomes an observation that the model can reason over instead of crashing the session; provider failures do not erase already persisted session state.
 
 ## Trace / observability
 
@@ -278,7 +309,7 @@ Handled failure modes include unknown tools, JSON Schema validation failures, to
 }
 ```
 
-Guard events currently cover duplicate actions, search saturation, weak-Core widening, and provenance enforcement. `/trace` surfaces the recent events for debugging and demonstration without turning observability into a second subsystem.
+Guard events cover duplicate actions, search saturation, weak-Core widening, provenance enforcement, and tool-budget exhaustion. Separate `quality_review` and `rescue_synthesis` events make the final acceptance path visible without logging private reasoning. `/trace` surfaces the recent events for debugging and demonstration without turning observability into a second subsystem.
 
 ## Tests
 
@@ -291,7 +322,7 @@ python -m pytest -q -m 'not live'
 Current local result:
 
 ```text
-44 passed, 1 skipped, 2 deselected
+49 passed, 1 skipped, 2 deselected
 ```
 
 The one skipped test in this command is the opt-in external Wikipedia smoke test. Two live Groq tests are deselected: one verifies real function calling and tool-result continuation, and one verifies Echo's product routing by giving the model a bare concrete situation and requiring successful `search` and `read_case` activity.
@@ -328,4 +359,4 @@ eval/              controlled analogy stimuli
 docs/              evaluation design
 ```
 
-Echo is intentionally modest in scope: it searches for useful structural analogies over a controlled atlas plus bounded open-domain evidence. It does not claim exhaustive historical search or human-level analogical reasoning.
+Echo is intentionally modest in its claims: it does not claim exhaustive historical search or human-level analogical reasoning. Its stronger product goal is narrower and testable: retrieve broadly enough to escape a finite case library, reject assumption-heavy matches, construct a fresh system analogy when retrieval is worse than synthesis, and always terminate a normal turn with a substantive analogy rather than a loop-limit message.

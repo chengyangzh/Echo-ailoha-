@@ -284,3 +284,25 @@ async def test_core_search_reports_weak_coverage_when_structure_is_not_represent
     assert out["coverage"]["status"] == "weak"
     assert "low_structural_score" in out["coverage"]["reasons"]
     assert "widen candidate discovery to Wikipedia" in out["notice"]
+
+@pytest.mark.asyncio
+async def test_unmapped_causal_mechanism_marks_core_coverage_weak():
+    t = SearchTool(CaseAtlas())
+    out = await t.execute(
+        user_id="u",
+        session_id="s",
+        source="core",
+        query="",
+        roles=["trusted peer", "victim", "scarce opportunity"],
+        goal="obtain a scarce opportunity",
+        strategy="use privileged trust or access",
+        mechanisms=["trusted_insider_appropriation"],
+        turning_point="the peer takes the opportunity",
+        outcome="the victim loses both opportunity and trust",
+        domains=[],
+        top_k=5,
+        diversify_domains=True,
+    )
+    assert out["coverage"]["status"] == "weak"
+    assert "unmapped_causal_mechanism" in out["coverage"]["reasons"]
+    assert out["coverage"]["unmapped_mechanisms"] == ["trusted_insider_appropriation"]

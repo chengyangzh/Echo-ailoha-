@@ -27,6 +27,10 @@ def make_runtime(tmp_path: Path, llm, *, max_iterations=8, context=None):
         llm=llm, registry=reg, store=store,
         context=context or ContextManager(), tracer=TraceLogger(str(tmp_path / "trace.jsonl")),
         max_iterations=max_iterations,
+        quality_review=False,
+        max_core_searches=8,
+        max_wikipedia_searches=8,
+        max_case_reads=8,
     )
 
 
@@ -164,40 +168,219 @@ async def test_max_iteration_limit_reserves_final_answer(tmp_path):
 
 class FakeWikipediaForWidening:
     async def search(self, query: str, *, limit: int = 5):
-        return [{"provider":"wikipedia","case_id":"9001","title":"External analogue","snippet":"A lightweight candidate discovered outside the Core Atlas.","url":"https://example.invalid/?curid=9001","retrieved_at":1.0,"candidate_only":True}]
+        return [{
+            "provider": "wikipedia",
+            "case_id": "9001",
+            "title": "External analogue",
+            "snippet": "A lightweight candidate discovered outside the Core Atlas.",
+            "url": "https://example.invalid/?curid=9001",
+            "retrieved_at": 1.0,
+            "candidate_only": True,
+        }]
+
     async def read(self, source_id: str, *, max_chars: int = 1200):
-        return {"provider":"wikipedia","case_id":source_id,"title":"External analogue","url":"https://example.invalid/?curid=9001","retrieved_at":2.0,"evidence":"Bounded external evidence for the candidate.","evidence_scope":"bounded_source_extract","normalization_status":"not_yet_casecard","notice":"Evidence only."}
+        return {
+            "provider": "wikipedia",
+            "case_id": source_id,
+            "title": "External analogue",
+            "url": "https://example.invalid/?curid=9001",
+            "retrieved_at": 2.0,
+            "evidence": "Bounded external evidence for the candidate.",
+            "evidence_scope": "bounded_source_extract",
+            "normalization_status": "not_yet_casecard",
+            "notice": "Evidence only.",
+        }
 
 
 def make_runtime_with_wikipedia(tmp_path: Path, llm):
-    store=SQLiteStore(str(tmp_path/"agent.db")); atlas=CaseAtlas(); wiki=FakeWikipediaForWidening(); reg=ToolRegistry()
-    for tool in (CalculatorTool(), SearchTool(atlas,wiki), ReadCaseTool(atlas,wiki), AnalogyBoardTool(store)): reg.register(tool)
-    return AgentRuntime(llm=llm,registry=reg,store=store,context=ContextManager(),tracer=TraceLogger(str(tmp_path/"trace.jsonl")),max_iterations=8)
+    store = SQLiteStore(str(tmp_path / "agent.db"))
+    atlas = CaseAtlas()
+    wiki = FakeWikipediaForWidening()
+    reg = ToolRegistry()
+    for tool in (
+        CalculatorTool(),
+        SearchTool(atlas, wiki),
+        ReadCaseTool(atlas, wiki),
+        AnalogyBoardTool(store),
+    ):
+        reg.register(tool)
+    return AgentRuntime(
+        llm=llm,
+        registry=reg,
+        store=store,
+        context=ContextManager(),
+        tracer=TraceLogger(str(tmp_path / "trace.jsonl")),
+        max_iterations=8,
+        quality_review=False,
+        max_core_searches=8,
+        max_wikipedia_searches=8,
+        max_case_reads=8,
+    )
 
 
 @pytest.mark.asyncio
 async def test_weak_core_coverage_requires_wikipedia_before_final(tmp_path):
-    weak_core={"source":"core","query":"","roles":["unrelated actor"],"goal":"do something idiosyncratic","strategy":"unique process with no atlas analogue","mechanisms":["totally_unseen_mechanism"],"turning_point":"unmatched event","outcome":"unmatched outcome","domains":[],"top_k":5,"diversify_domains":False}
-    llm=ScriptedLLM([LLMDecision(tool_calls=[ToolCall("s1","search",weak_core)]),LLMDecision(final_text="I will stop at the Core Atlas."),LLMDecision(tool_calls=[ToolCall("s2","search",{"source":"wikipedia","query":"external analogue unusual mechanism","top_k":3})]),LLMDecision(tool_calls=[ToolCall("r1","read_case",{"provider":"wikipedia","case_id":"9001"})]),LLMDecision(final_text="External analogue after widening.")])
-    rt=make_runtime_with_wikipedia(tmp_path,llm); out=await rt.run(user_id="u",session_id="s",user_input="find a case")
-    assert out=="External analogue after widening."
+    weak_core = {
+        "source": "core",
+        "query": "",
+        "roles": ["unrelated actor"],
+        "goal": "do something idiosyncratic",
+        "strategy": "unique process with no atlas analogue",
+        "mechanisms": ["totally_unseen_mechanism"],
+        "turning_point": "unmatched event",
+        "outcome": "unmatched outcome",
+        "domains": [],
+        "top_k": 5,
+        "diversify_domains": False,
+    }
+    llm = ScriptedLLM([
+        LLMDecision(tool_calls=[ToolCall("s1", "search", weak_core)]),
+        LLMDecision(final_text="I will stop at the Core Atlas."),
+        LLMDecision(tool_calls=[ToolCall("s2", "search", {
+            "source": "wikipedia",
+            "query": "external analogue unusual mechanism",
+            "top_k": 3,
+        })]),
+        LLMDecision(tool_calls=[ToolCall("r1", "read_case", {
+            "provider": "wikipedia",
+            "case_id": "9001",
+        })]),
+        LLMDecision(final_text="External analogue after widening."),
+    ])
+    rt = make_runtime_with_wikipedia(tmp_path, llm)
+    out = await rt.run(user_id="u", session_id="s", user_input="find a case")
+    assert out == "External analogue after widening."
     assert "WIDENING REQUIREMENT" in json.dumps(llm.calls[2]["context"])
-    events=rt.tracer.tail(20); assert any(e.get("kind")=="widening_required" for e in events); tools=[e for e in events if e.get("event")=="tool"]; assert [e["tool"] for e in tools]==["search","search","read_case"]; assert tools[1]["arguments"]["source"]=="wikipedia"
+    events = rt.tracer.tail(20)
+    assert any(e.get("kind") == "widening_required" for e in events)
+    tools = [e for e in events if e.get("event") == "tool"]
+    assert [e["tool"] for e in tools] == ["search", "search", "read_case"]
+    assert tools[1]["arguments"]["source"] == "wikipedia"
 
 
 @pytest.mark.asyncio
 async def test_strong_core_coverage_does_not_force_wikipedia(tmp_path):
-    strong_core={"source":"core","query":"","roles":["signal sender","signal receivers","real threat"],"goal":"preserve response to a real warning","strategy":"repeatedly use a warning channel for low-value alerts","mechanisms":["signaling","credibility_decay","feedback_loop"],"turning_point":"receivers learn the channel is unreliable","outcome":"a genuine warning is ignored","domains":[],"top_k":5,"diversify_domains":False}
-    llm=ScriptedLLM([LLMDecision(tool_calls=[ToolCall("s1","search",strong_core)]),LLMDecision(tool_calls=[ToolCall("r1","read_case",{"provider":"core_atlas","case_id":"boy_who_cried_wolf"})]),LLMDecision(final_text="Boy Who Cried Wolf.")])
-    rt=make_runtime_with_wikipedia(tmp_path,llm); out=await rt.run(user_id="u",session_id="s",user_input="find a case")
-    assert out=="Boy Who Cried Wolf."
-    assert not any(e.get("kind")=="widening_required" for e in rt.tracer.tail(20))
+    strong_core = {
+        "source": "core",
+        "query": "",
+        "roles": ["signal sender", "signal receivers", "real threat"],
+        "goal": "preserve response to a real warning",
+        "strategy": "repeatedly use a warning channel for low-value alerts",
+        "mechanisms": ["signaling", "credibility_decay", "feedback_loop"],
+        "turning_point": "receivers learn the channel is unreliable",
+        "outcome": "a genuine warning is ignored",
+        "domains": [],
+        "top_k": 5,
+        "diversify_domains": False,
+    }
+    llm = ScriptedLLM([
+        LLMDecision(tool_calls=[ToolCall("s1", "search", strong_core)]),
+        LLMDecision(tool_calls=[ToolCall("r1", "read_case", {
+            "provider": "core_atlas",
+            "case_id": "boy_who_cried_wolf",
+        })]),
+        LLMDecision(final_text="Boy Who Cried Wolf."),
+    ])
+    rt = make_runtime_with_wikipedia(tmp_path, llm)
+    out = await rt.run(user_id="u", session_id="s", user_input="find a case")
+    assert out == "Boy Who Cried Wolf."
+    assert not any(e.get("kind") == "widening_required" for e in rt.tracer.tail(20))
 
 
 @pytest.mark.asyncio
 async def test_final_iteration_hides_tools_and_synthesizes(tmp_path):
-    llm=ScriptedLLM([LLMDecision(tool_calls=[ToolCall("c1","calculator",{"expression":"2+2"})]),LLMDecision(tool_calls=[ToolCall("c2","calculator",{"expression":"3+3"})]),LLMDecision(final_text="A bounded final answer.")])
-    rt=make_runtime(tmp_path,llm,max_iterations=3); answer=await rt.run(user_id="u",session_id="s",user_input="A difficult situation")
-    assert answer=="A bounded final answer."
-    assert llm.calls[-1]["tools"]==[]
+    llm = ScriptedLLM([
+        LLMDecision(tool_calls=[ToolCall("c1", "calculator", {"expression": "2+2"})]),
+        LLMDecision(tool_calls=[ToolCall("c2", "calculator", {"expression": "3+3"})]),
+        LLMDecision(final_text="A bounded final answer."),
+    ])
+    rt = make_runtime(tmp_path, llm, max_iterations=3)
+    answer = await rt.run(user_id="u", session_id="s", user_input="A difficult situation")
+    assert answer == "A bounded final answer."
+    assert llm.calls[-1]["tools"] == []
     assert "Stopped after" not in answer
+
+@pytest.mark.asyncio
+async def test_production_budget_blocks_repeated_core_search(tmp_path):
+    store = SQLiteStore(str(tmp_path / "budget.db"))
+    atlas = CaseAtlas()
+    reg = ToolRegistry()
+    for tool in (CalculatorTool(), SearchTool(atlas), ReadCaseTool(atlas), AnalogyBoardTool(store)):
+        reg.register(tool)
+    base = {
+        "source": "core", "roles": ["signal sender", "receivers"],
+        "goal": "warning believed", "strategy": "repeated warnings",
+        "mechanisms": ["signaling", "credibility_decay", "feedback_loop"],
+        "turning_point": "trust collapses", "outcome": "real warning ignored",
+        "domains": [], "top_k": 5, "diversify_domains": False,
+    }
+    llm = ScriptedLLM([
+        LLMDecision(tool_calls=[ToolCall("s1", "search", {**base, "query": ""})]),
+        LLMDecision(tool_calls=[ToolCall("s2", "search", {**base, "query": "again"})]),
+        LLMDecision(tool_calls=[ToolCall("r1", "read_case", {
+            "provider": "core_atlas", "case_id": "boy_who_cried_wolf",
+        })]),
+        LLMDecision(final_text="done"),
+    ])
+    rt = AgentRuntime(
+        llm=llm, registry=reg, store=store,
+        context=ContextManager(), tracer=TraceLogger(str(tmp_path / "budget-trace.jsonl")),
+        quality_review=False,
+    )
+    assert await rt.run(user_id="u", session_id="s", user_input="analogy") == "done"
+    assert "tool_budget_exhausted" in json.dumps(llm.calls[2]["context"])
+    assert any(e.get("kind") == "tool_budget_exhausted" for e in rt.tracer.tail(20))
+
+
+@pytest.mark.asyncio
+async def test_quality_review_can_replace_a_forced_retrieved_draft(tmp_path):
+    store = SQLiteStore(str(tmp_path / "quality.db"))
+    atlas = CaseAtlas()
+    reg = ToolRegistry()
+    for tool in (CalculatorTool(), SearchTool(atlas), ReadCaseTool(atlas), AnalogyBoardTool(store)):
+        reg.register(tool)
+    search_args = {
+        "source": "core", "query": "", "roles": ["signal sender", "receivers", "threat"],
+        "goal": "get a true warning believed", "strategy": "repeated warnings",
+        "mechanisms": ["signaling", "credibility_decay", "feedback_loop"],
+        "turning_point": "receivers stop believing the warning", "outcome": "real danger is ignored",
+        "domains": [], "top_k": 5, "diversify_domains": False,
+    }
+    reviewed = (
+        "A cleaner constructed analogy is a smoke detector that becomes so noisy that occupants "
+        "start ignoring it: repeated low-value signals train receivers to discount the channel; "
+        "when a real fire arrives, the same learned discounting now suppresses the useful response. "
+        "The analogy breaks because a detector has no strategic intent."
+    )
+    llm = ScriptedLLM([
+        LLMDecision(tool_calls=[ToolCall("s1", "search", search_args)]),
+        LLMDecision(tool_calls=[ToolCall("r1", "read_case", {
+            "provider": "core_atlas", "case_id": "boy_who_cried_wolf",
+        })]),
+        LLMDecision(final_text="A famous story is probably close enough."),
+        LLMDecision(final_text=reviewed),
+    ])
+    rt = AgentRuntime(
+        llm=llm, registry=reg, store=store,
+        context=ContextManager(), tracer=TraceLogger(str(tmp_path / "quality-trace.jsonl")),
+        quality_review=True,
+    )
+    out = await rt.run(user_id="u", session_id="s", user_input="noisy warnings keep getting ignored")
+    assert out == reviewed
+    review_context = json.dumps(llm.calls[-1]["context"])
+    assert "FINAL ANALOGY QUALITY REVIEW" in review_context
+    assert "unstated motive" in review_context
+    assert any(e.get("event") == "quality_review" for e in rt.tracer.tail(20))
+
+
+@pytest.mark.asyncio
+async def test_no_text_finalization_uses_bounded_rescue_synthesis(tmp_path):
+    llm = ScriptedLLM([
+        LLMDecision(tool_calls=[ToolCall("c1", "calculator", {"expression": "2+2"})]),
+        LLMDecision(),
+        LLMDecision(final_text="A substantive rescue answer."),
+    ])
+    rt = make_runtime(tmp_path, llm, max_iterations=2)
+    out = await rt.run(user_id="u", session_id="s", user_input="hard case")
+    assert out == "A substantive rescue answer."
+    assert "iteration" not in out.lower()

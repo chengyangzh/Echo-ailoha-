@@ -36,6 +36,7 @@ async def test_parses_tool_call_final_text_and_reasoning_summary():
     request = client.responses.requests[0]
     assert "previous_response_id" not in request
     assert request["input"] == [{"role": "user", "content": "hi"}]
+    assert request["reasoning"] == {"effort": "high"}
 
 
 def test_missing_groq_key_is_clean_configuration_error(monkeypatch):
