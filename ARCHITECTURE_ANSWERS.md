@@ -1,4 +1,3 @@
-# Architecture Design Answers
 
 ## 模块一 / Q2
 
