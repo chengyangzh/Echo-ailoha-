@@ -10,6 +10,7 @@ from ..tooling import Tool, ToolSpec
 
 CORE_COVERAGE_THRESHOLD = 0.48
 CORE_MECHANISM_COVERAGE_THRESHOLD = 0.67
+MAX_EXECUTION_TOP_K = 8
 
 
 class SearchTool(Tool):
@@ -52,7 +53,10 @@ class SearchTool(Tool):
                         "and normalized/ignored safely by the tool."
                     ),
                 },
-                "top_k": {"type": "integer", "minimum": 1, "maximum": 8},
+                # Keep the provider-facing schema permissive. Some models naturally request
+                # round numbers such as 10. Runtime/tool execution still clamps the actual work
+                # to MAX_EXECUTION_TOP_K so a harmless preference cannot become a provider 400.
+                "top_k": {"type": "integer", "minimum": 1, "maximum": 32},
                 "diversify_domains": {"type": "boolean"},
             },
             "required": [],
@@ -89,6 +93,8 @@ class SearchTool(Tool):
         roles = list(roles or [])
         mechanisms = list(mechanisms or [])
         domains = list(domains or [])
+        requested_top_k = int(top_k)
+        top_k = max(1, min(requested_top_k, MAX_EXECUTION_TOP_K))
 
         if source == "core":
             canonical_mechanisms, mechanism_mapped, mechanism_unknown = normalize_mechanisms(mechanisms)
@@ -118,6 +124,10 @@ class SearchTool(Tool):
                 "Candidates are the best matches found in Echo's curated Core Atlas, not proof "
                 "that no better analogy exists outside the accessible search space."
             ]
+            if requested_top_k != top_k:
+                notices.append(
+                    f"Requested top_k={requested_top_k} was safely clamped to {top_k} for bounded execution."
+                )
             missing_frame_fields = [
                 name for name, value in {
                     "roles": roles, "goal": goal, "strategy": strategy,
@@ -203,14 +213,17 @@ class SearchTool(Tool):
 
         if source == "wikipedia":
             candidates = await self.wikipedia.search(query, limit=top_k)
+            notice = (
+                "Wikipedia search is candidate discovery only. Results may be lexically related "
+                "without sharing the target causal structure. Inspect promising pages with "
+                "read_case and let the LLM judge the analogy."
+            )
+            if requested_top_k != top_k:
+                notice += f" Requested top_k={requested_top_k} was safely clamped to {top_k} for bounded execution."
             return {
                 "scope": "wikipedia",
                 "exhaustive": False,
-                "notice": (
-                    "Wikipedia search is candidate discovery only. Results may be lexically related "
-                    "without sharing the target causal structure. Inspect promising pages with "
-                    "read_case and let the LLM judge the analogy."
-                ),
+                "notice": notice,
                 "query": query,
                 "candidates": candidates,
             }
