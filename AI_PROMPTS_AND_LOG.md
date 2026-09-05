@@ -4,25 +4,25 @@
 
 ## 1. 先把 Echo 定义成一个有产品身份的 agent
 
-**Prompt（整理）**：我不想做一个 calculator、search、todo 拼在一起的通用 agent demo，我希望它本身有一个明确而且有趣的用途。我想到的是 analogical reasoning：用户给出一个真实场景、失败、策略或者冲突，系统不要只按关键词找相似事件，而是先抽象这个场景里真正起作用的结构，再去找其他领域里因果关系相似的案例。这个抽象至少要能表达 roles、goal、strategy、mechanisms、turning point 和 outcome，而且我不希望把流程写死成 search→read→final，工具调用顺序还是应该由模型自己决定。搜索只能给候选，真正采用一个 analogy 之前必须再读具体 case；最后的回答除了说明 mapping 和 shared mechanism，也一定要说清楚 where the analogy breaks。
+**Prompt**：我不想做一个 calculator、search、todo 拼在一起的通用 agent demo，我希望它本身有一个明确而且有趣的用途。我想到的是 analogical reasoning：用户给出一个真实场景、失败、策略或者冲突，系统不要只按关键词找相似事件，而是先抽象这个场景里真正起作用的结构，再去找其他领域里因果关系相似的案例。这个抽象至少要能表达 roles、goal、strategy、mechanisms、turning point 和 outcome，而且我不希望把流程写死成 search→read→final，工具调用顺序还是应该由模型自己决定。搜索只能给候选，真正采用一个 analogy 之前必须再读具体 case；最后的回答除了说明 mapping 和 shared mechanism，也一定要说清楚 where the analogy breaks。
 
 **处理结果**：最终把 Echo 定义成了一个“search by structure, not by words”的结构类比 agent。Runtime 只规定合法动作和少数不变量，LLM 自己选择 direct answer、`search`、`read_case`、`analogy_board` 或其他工具；新的 concrete situation 默认被解释成 implicit analogy request，这样 Echo 不会退化成普通聊天助手。这个决定也确定了后面所有功能的优先级：复杂度应该集中在结构抽象、候选检索、证据检查和跨轮状态，而不是泛化成一个无边界的 agent 平台。
 
 ## 2. 设计 Core Atlas 和 Wikipedia 的边界
 
-**Prompt（整理）**：Echo 最大的问题是很容易嘴上说“结构相似”，实际还是 semantic similarity，所以我需要一个能真正区分 structure 和 surface 的 search space。我的想法是先做一个小而受控的 Core Atlas，把寓言、中外历史、战略、商业、制度、科学技术等不同领域的案例统一成同一种 CaseCard，这样同一个 mechanism 可以跨领域比较；但 Atlas 又不能变成 Echo 的全部世界知识，所以我还想留一个开放搜索出口。我不想加 vector database、embedding service 或 browser agent，那些会把 scope 拉得太大，而且也不直接证明 analogy 做得更好。请按这个思路设计一个最小的两层检索：本地 atlas 用来稳定搜索和评测，外部只接一个 source，先发现 candidate，再单独读取 bounded evidence，外部搜索层本身绝对不能替 LLM 做 analogy judgment。
+**Prompt**：Echo 最大的问题是很容易嘴上说“结构相似”，实际还是 semantic similarity，所以我需要一个能真正区分 structure 和 surface 的 search space。我的想法是先做一个小而受控的 Core Atlas，把寓言、中外历史、战略、商业、制度、科学技术等不同领域的案例统一成同一种 CaseCard，这样同一个 mechanism 可以跨领域比较；但 Atlas 又不能变成 Echo 的全部世界知识，所以我还想留一个开放搜索出口。我不想加 vector database、embedding service 或 browser agent，那些会把 scope 拉得太大，而且也不直接证明 analogy 做得更好。请按这个思路设计一个最小的两层检索：本地 atlas 用来稳定搜索和评测，外部只接一个 source，先发现 candidate，再单独读取 bounded evidence，外部搜索层本身绝对不能替 LLM 做 analogy judgment。
 
 **处理结果**：最后形成了 Core Atlas + Wikipedia 的两层结构。Core Atlas 提供可复现的结构化候选和 deterministic evaluation；Wikipedia 只通过 MediaWiki API 返回 title、snippet、page id、URL 等轻量候选，`read_case` 再读取有限长度的 source extract。Wikipedia 页面不会自动被转换成 CaseCard，也不会因为搜索命中就被视为好 analogy。后来又补了一层很小的 coverage gate：Core 第一名的 structural score 低于 0.30，或已经识别出的 canonical mechanism 在第一名里完全没有命中时，Runtime 不允许直接结束，而要求模型至少尝试一次 Wikipedia；但 query、候选选择和最终 structural judgment 仍然由 LLM 决定。这样 retrieval layer 负责“有哪些东西值得看”，LLM 负责“这些东西在关系结构上到底是不是同一个问题”，既扩大了 coverage，又没有把项目变成普通 RAG。
 
 ## 3. 把 transcript、长期摘要、证据和 analogy decision 分开
 
-**Prompt（整理）**：我希望 session 真的能恢复，而且长对话不能靠把所有 raw history 永远塞回模型里来维持。我觉得至少要区分三件事：最近几轮原话，因为 follow-up 可能依赖指代；更早历史的压缩摘要，因为上下文不能无限增长；以及已经做出的结构化 analogy decision，例如哪个 candidate 被选中、哪个被拒绝、mapping 和 analogy break 是什么，这些不应该被一个 lossy summary 决定是否还能记住。外部 evidence 也类似，当前下一次 reasoning 可以需要比较完整的页面内容，但 SQLite 没必要永久保存整段 Wikipedia。请设计一个尽量小的 state model，让我可以明确解释每次 recall 发生在什么时候、什么内容会重新进入 context，以及 process restart 以后为什么还能续上。
+**Prompt**：我希望 session 真的能恢复，而且长对话不能靠把所有 raw history 永远塞回模型里来维持。我觉得至少要区分三件事：最近几轮原话，因为 follow-up 可能依赖指代；更早历史的压缩摘要，因为上下文不能无限增长；以及已经做出的结构化 analogy decision，例如哪个 candidate 被选中、哪个被拒绝、mapping 和 analogy break 是什么，这些不应该被一个 lossy summary 决定是否还能记住。外部 evidence 也类似，当前下一次 reasoning 可以需要比较完整的页面内容，但 SQLite 没必要永久保存整段 Wikipedia。请设计一个尽量小的 state model，让我可以明确解释每次 recall 发生在什么时候、什么内容会重新进入 context，以及 process restart 以后为什么还能续上。
 
 **处理结果**：session 用 `(user_id, session_id)` 作为 SQLite key；每次模型决策前，ContextManager 按“active Analogy Board → session summary → recent raw messages/tool observations → latest rich tool result”的顺序重建 context。旧 transcript 超过预算时才压缩，最近窗口继续保留。Analogy Board 独立保存 selected/rejected candidate 和结构化 mapping，所以 transcript 被压缩也不会丢掉已经确认的决定。外部页面则采用“当前 rich、长期 compact”的策略：下一步判断可以看到 bounded evidence，持久化历史只保留更短的 provenance/evidence preview。这个设计最后被概括成一句话：the transcript remembers what was said; the board remembers what was decided。
 
 ## 4. 设计 surface trap
 
-**Prompt（整理）**：我不想拿几个 demo 看模型回答得像不像就说 Echo 有 analogical reasoning。我希望评测本身能主动杀掉“其实只是关键词匹配”这个解释。可以借鉴 Hongjing Lu、Keith Holyoak 和 Taylor Webb 关于 LLM analogy 的实验思路，把 surface similarity 和 relational structure 分开：near analogy 是 surface 高、structure 高；far analogy 是 surface 低、structure 高；surface trap 是 surface 高但关键 causal relation 错了；另外再有 unrelated control。最重要的比较应该是 far structural match 能不能压过 surface trap。gold 也不能看到模型输出以后再挑，应该先冻结 mechanism 和 causal edge，再构造对应项和干扰项。另外加一个非常简单的 lexical baseline，如果 baseline 也能轻松做对，那说明 benchmark 本身不够难；还要把“raw situation 有没有抽象出正确 mechanism”和“给定 frame 后 retrieval 能不能找到正确 case”拆开测。
+**Prompt**：我不想拿几个 demo 看模型回答得像不像就说 Echo 有 analogical reasoning。我希望评测本身能主动杀掉“其实只是关键词匹配”这个解释。可以借鉴 Hongjing Lu、Keith Holyoak 和 Taylor Webb 关于 LLM analogy 的实验思路，把 surface similarity 和 relational structure 分开：near analogy 是 surface 高、structure 高；far analogy 是 surface 低、structure 高；surface trap 是 surface 高但关键 causal relation 错了；另外再有 unrelated control。最重要的比较应该是 far structural match 能不能压过 surface trap。gold 也不能看到模型输出以后再挑，应该先冻结 mechanism 和 causal edge，再构造对应项和干扰项。另外加一个非常简单的 lexical baseline，如果 baseline 也能轻松做对，那说明 benchmark 本身不够难；还要把“raw situation 有没有抽象出正确 mechanism”和“给定 frame 后 retrieval 能不能找到正确 case”拆开测。
 
 **处理结果**：evaluation 最后按 Near / Far / Surface Trap / Unrelated 四种条件组织，核心指标是 structural-over-surface accuracy，并同时看 Recall@5、MRR 和 lexical baseline。第一次 surface-trap benchmark 实际被否掉过，因为 lexical Jaccard baseline 做到了 93.75%，说明干扰项太弱；后来改成破坏关键 causal edge 而不是只换词，lexical baseline 明显下降，而 structural ranker 仍能稳定把 far match 排在 surface trap 前面。另一方面又单独做了 frame-extraction control，因为 retrieval 100% 并不能证明模型从原始用户输入里抽象对了机制。这个 separation 让 runtime correctness、abstraction quality 和 retrieval quality 不再混成一个指标。
 
