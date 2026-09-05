@@ -143,18 +143,40 @@ class ResponsesClient(LLMClient):
                     continue
                 raise
 
+    @staticmethod
+    def _response_incomplete(response: Any) -> bool:
+        if getattr(response, "status", None) == "incomplete":
+            return True
+        details = getattr(response, "incomplete_details", None)
+        return details is not None and getattr(details, "reason", None) is not None
+
     async def decide(self, *, context: list[dict], tools: list[dict]) -> LLMDecision:
         # Tool-selection turns need less output/reasoning than final synthesis. This keeps
         # the 120B quality advantage while staying under a strict 8k TPM service tier.
         has_tools = bool(tools)
-        response = await self._create_with_resilience(
-            model=self.model,
-            instructions=SYSTEM_PROMPT,
-            input=context,
-            tools=tools,
-            reasoning={"effort": "medium" if has_tools else "high"},
-            max_output_tokens=800 if has_tools else 1_100,
-        )
+        request = {
+            "model": self.model,
+            "instructions": SYSTEM_PROMPT,
+            "input": context,
+            "tools": tools,
+            "reasoning": {"effort": "medium" if has_tools else "high"},
+            "max_output_tokens": 800 if has_tools else 1_100,
+        }
+        response = await self._create_with_resilience(**request)
+
+        # A reasoning model can spend most of max_output_tokens internally and leave only a
+        # fragment of visible text. Never surface that fragment as Echo's final answer.
+        if not has_tools and self._response_incomplete(response):
+            retry = dict(request)
+            retry["input"] = self._compact_input(context, max_chars=4_000)
+            retry["reasoning"] = {"effort": "medium"}
+            retry["max_output_tokens"] = 950
+            response = await self._create_with_resilience(**retry)
+            if self._response_incomplete(response) and retry["model"] != self.fallback_model:
+                retry["model"] = self.fallback_model
+                retry["reasoning"] = {"effort": "low"}
+                retry["max_output_tokens"] = 900
+                response = await self._create_with_resilience(**retry)
 
         calls: list[ToolCall] = []
         text_parts: list[str] = []
