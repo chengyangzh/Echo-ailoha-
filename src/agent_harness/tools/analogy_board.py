@@ -40,7 +40,7 @@ class AnalogyBoardTool(Tool):
                 "case_id": {"type": ["string", "null"]},
                 "status": {
                     "type": ["string", "null"],
-                    "enum": ["selected", "rejected", "considering", null],
+                    "enum": ["selected", "rejected", "considering", None],
                 },
                 "reason": {"type": ["string", "null"]},
                 "mapping": {"type": ["string", "null"]},
