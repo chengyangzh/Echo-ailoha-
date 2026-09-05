@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import asyncio
 import json
 import os
 from typing import Any
+
+from openai import RateLimitError
 
 from .models import LLMDecision, Message, ToolCall
 
@@ -39,7 +42,14 @@ Tool policy:
 - Use analogy_board when a candidate decision should survive follow-up.
 - If Runtime reports duplicate action, search saturation, search budget, or a provenance requirement, make progress instead of repeating the same search.
 
-For a substantive analogy answer: lead with ONE best analogy, explain the mapping and shared mechanism compactly, then state where it breaks. If it is constructed rather than retrieved, say so naturally (for example, "A cleaner constructed analogy is..."). Never claim exhaustive search. Do not fabricate tool results or reveal private chain-of-thought.
+Answer style:
+- Lead immediately with ONE best analogy.
+- Prefer 3–4 crisp mapping bullets over a large table unless a table is genuinely necessary.
+- Then give the shared mechanism in one short paragraph and one important analogy break.
+- Keep the default answer compact enough to explain aloud in an interview; do not turn a simple analogy into a report.
+- Avoid defensive meta-commentary such as "this is not advice" unless the distinction matters to the user's request.
+- If the analogy is constructed rather than retrieved, label it naturally (for example, "A cleaner constructed analogy is...").
+- Never claim exhaustive search. Do not fabricate tool results or reveal private chain-of-thought.
 """
 
 
@@ -78,8 +88,25 @@ class ResponsesClient(LLMClient):
         self.client = client
         self.model = model or os.environ.get("GROQ_MODEL") or "openai/gpt-oss-120b"
 
+    async def _create_with_rate_limit_retry(self, **kwargs: Any) -> Any:
+        """Retry short rolling-window TPM limits inside the provider boundary.
+
+        Groq commonly returns a precise retry-after interval for transient TPM pressure.
+        A manual retry a few seconds later succeeds, so the Harness should absorb that
+        transient condition instead of making the user resubmit the same turn.
+        """
+        delays = (5.5, 9.0)
+        for attempt in range(len(delays) + 1):
+            try:
+                return await self.client.responses.create(**kwargs)
+            except RateLimitError:
+                if attempt >= len(delays):
+                    raise
+                await asyncio.sleep(delays[attempt])
+        raise RuntimeError("unreachable")
+
     async def decide(self, *, context: list[dict], tools: list[dict]) -> LLMDecision:
-        response = await self.client.responses.create(
+        response = await self._create_with_rate_limit_retry(
             model=self.model,
             instructions=SYSTEM_PROMPT,
             input=context,
@@ -121,7 +148,7 @@ class ResponsesClient(LLMClient):
             f"Existing summary:\n{old_summary or '(none)'}\n\nHistory:\n{transcript}\n\n"
             "Return only the compact summary."
         )
-        response = await self.client.responses.create(model=self.model, input=prompt)
+        response = await self._create_with_rate_limit_retry(model=self.model, input=prompt)
         return response.output_text.strip()
 
 
