@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "description": "Small opt-in LLM selection extension probing relation direction and higher-order causal integration. These trials are inspired by relation-sensitive analogy work but use original Echo stimuli.",
+  "trials": [
+    {
+      "id": "role_direction_dependency_1",
+      "kind": "role_direction",
+      "source": "A software vendor makes a client dependent on a proprietary data format. Because switching away becomes costly, the vendor gains bargaining leverage over the client.",
+      "a": "A state controls the only practical passage used by a neighboring trader. Once the trader depends on that route, the state can demand concessions because exit is costly.",
+      "b": "A large client makes a software vendor dependent on one enormous contract. Because losing the client would be costly, the client gains bargaining leverage over the vendor.",
+      "expected": "A",
+      "control": "Both candidates involve dependency and bargaining; B reverses who creates dependency and who gains leverage."
+    },
+    {
+      "id": "role_direction_information_1",
+      "kind": "role_direction",
+      "source": "A contractor knows about a hidden defect that the buyer cannot observe. The contractor exploits that information advantage during negotiation.",
+      "a": "A seller knows that a used machine has an internal fault that the purchaser cannot inspect, and uses that hidden knowledge to secure a better deal.",
+      "b": "A purchaser secretly knows that a contractor is desperate for cash and uses this private information to force the contractor into a worse deal.",
+      "expected": "A",
+      "control": "The same information-asymmetry vocabulary is present, but B reverses the informed and exploited roles."
+    },
+    {
+      "id": "role_direction_commitment_1",
+      "kind": "role_direction",
+      "source": "A small platform builds its entire workflow around one supplier's interface. The supplier can later threaten withdrawal because the platform has become committed and dependent.",
+      "a": "An army advances so far through a single supply corridor that the corridor owner can threaten to close it, forcing the army to bargain from a weak position.",
+      "b": "A supplier builds a factory solely for one small platform. The platform can later threaten to leave because the supplier has become committed and dependent.",
+      "expected": "A",
+      "control": "B preserves commitment/dependency terms while reversing the relational direction."
+    },
+    {
+      "id": "causal_order_credibility_1",
+      "kind": "causal_order",
+      "source": "A monitoring system emits many low-value warnings. Operators learn not to trust the channel, and that loss of credibility causes them to ignore a later genuine warning.",
+      "a": "A shepherd repeatedly gives false wolf warnings. Villagers stop trusting him, so his later genuine warning is ignored when a wolf actually appears.",
+      "b": "A genuine monitoring warning is first missed because a network outage hides it. Only afterward does the system begin producing many false warnings, which later reduce operator trust.",
+      "expected": "A",
+      "control": "B contains the same event vocabulary but permutes the causal order, so credibility loss cannot explain the missed genuine warning."
+    },
+    {
+      "id": "causal_order_resource_1",
+      "kind": "causal_order",
+      "source": "A service extracts so much short-term value from its users that the user base collapses, destroying the future revenue stream the extraction depended on.",
+      "a": "An owner kills a goose that produces golden eggs to obtain all of its value immediately, thereby destroying the asset that generated future returns.",
+      "b": "A productive asset is first destroyed by an unrelated disease. After future returns are already gone, the owner liquidates the remaining resources for short-term cash.",
+      "expected": "A",
+      "control": "Both mention asset loss and short-term extraction, but only A preserves extraction -> resource destruction -> lost future value."
+    },
+    {
+      "id": "causal_order_proxy_1",
+      "kind": "causal_order",
+      "source": "A university makes publication count the dominant performance target. Researchers optimize the count by slicing work into small papers, so the metric rises while becoming less informative about real research quality.",
+      "a": "A call center rewards calls handled per hour. Agents rush customers off the phone, improving the metric while degrading the service quality the metric was meant to represent.",
+      "b": "Customer service quality collapses after a software outage. Managers then introduce calls-per-hour as a new metric to measure the already-existing decline.",
+      "expected": "A",
+      "control": "B contains the same metric and quality concepts, but metric optimization did not cause the objective to degrade or the proxy to lose validity."
+    }
+  ]
+}

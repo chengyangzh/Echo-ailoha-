@@ -1,0 +1,47 @@
+[
+  {
+    "id": "far_deception_over_surface_wolf",
+    "condition": "far_vs_surface_trap",
+    "description": "A disguised hostile actor is admitted through a trusted boundary.",
+    "frame": {
+      "roles": ["hidden attacker", "defender", "trusted carrier"],
+      "goal": "cross a protected boundary",
+      "strategy": "hide hostile identity inside something the target accepts",
+      "mechanisms": ["strategic_deception", "information_asymmetry"],
+      "turning_point": "the defender admits the disguised threat",
+      "outcome": "the attacker gains access without a direct breach"
+    },
+    "expected_top_k": ["trojan_horse"],
+    "must_outrank": [["trojan_horse", "boy_who_cried_wolf"]]
+  },
+  {
+    "id": "far_fable_for_alert_fatigue",
+    "condition": "far_analogy",
+    "description": "Frequent low-value warnings train receivers to ignore a later real warning.",
+    "frame": {
+      "roles": ["alerting system", "operators", "real hazard"],
+      "goal": "preserve response to important danger",
+      "strategy": "send frequent low-value alarms",
+      "mechanisms": ["signaling", "credibility_decay", "feedback_loop"],
+      "turning_point": "receivers learn to discount the warning channel",
+      "outcome": "an important later warning receives too little response"
+    },
+    "expected_top_k": ["boy_who_cried_wolf", "alarm_fatigue"],
+    "must_outrank": []
+  },
+  {
+    "id": "cross_domain_local_global_tradeoff",
+    "condition": "far_analogy",
+    "description": "A team intentionally loses one local contest to improve the total series outcome.",
+    "frame": {
+      "roles": ["strategic actor", "opponent", "unequal resources"],
+      "goal": "maximize the total result rather than each local result",
+      "strategy": "accept a local sacrifice and rematch resources globally",
+      "mechanisms": ["local_global_tradeoff", "resource_matching"],
+      "turning_point": "resources are reassigned across local contests",
+      "outcome": "a local loss enables a better aggregate result"
+    },
+    "expected_top_k": ["tian_ji_horse_racing", "queens_gambit_concept"],
+    "must_outrank": []
+  }
+]

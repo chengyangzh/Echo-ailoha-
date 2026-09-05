@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "description": "Controlled forced-choice stimuli for optional live LLM analogy selection. Each family includes near, far, surface-trap, and unrelated candidates. The critical comparison is far structural match versus surface trap.",
+  "items": [
+    {
+      "id": "sel_credibility",
+      "family": "credibility_depletion",
+      "source": "A software platform sends so many low-value security alerts that engineers learn to ignore them. A later alert corresponds to a real intrusion, but the team dismisses it because the warning channel has lost credibility.",
+      "candidates": {
+        "near": "A hospital monitor produces frequent false alarms. Nurses become desensitized and react too slowly when a real emergency alarm occurs.",
+        "far": "A shepherd repeatedly gives false warnings about a wolf. Villagers eventually stop trusting him, so when a real wolf appears his genuine warning is ignored.",
+        "surface_trap": "A software platform upgrades its security-alert interface, making warnings larger and easier for engineers to notice; response time improves because the signal becomes more salient.",
+        "unrelated": "A restaurant changes its reservation layout to seat larger groups more efficiently."
+      }
+    },
+    {
+      "id": "sel_local_global",
+      "family": "local_global_optimization",
+      "source": "A company deliberately accepts a loss in one small market so scarce sales resources can be reassigned to two markets where the matchup is much more favorable, increasing total portfolio return.",
+      "candidates": {
+        "near": "A fund sells one locally profitable position to free capital for a combination of positions with better expected portfolio-level return.",
+        "far": "A competitor with weaker and stronger horses deliberately sacrifices one race and changes the pairings in the others, improving the result of the whole series.",
+        "surface_trap": "A company accepts losses in a small market because managers failed to notice that the product was unprofitable; the loss has no compensating effect elsewhere.",
+        "unrelated": "A city repaints lane markings to make a road easier to navigate."
+      }
+    },
+    {
+      "id": "sel_model_world",
+      "family": "model_world_mismatch",
+      "source": "A bank continues using a risk model calibrated to a stable housing market after the market regime changes. The equations still run correctly, but their assumptions no longer fit the environment.",
+      "candidates": {
+        "near": "A forecasting system trained on one economic regime fails after policy changes alter the relationships its model assumed were stable.",
+        "far": "A commander fluent in abstract military theory applies textbook assumptions without adapting to battlefield feedback, and the plan fails when real conditions violate those assumptions.",
+        "surface_trap": "A bank updates a risk model after discovering a software bug in one formula; once the formula is fixed, the same market assumptions remain valid.",
+        "unrelated": "A museum moves a painting to a room with better lighting."
+      }
+    },
+    {
+      "id": "sel_resource",
+      "family": "resource_depletion",
+      "source": "A subscription service maximizes immediate fees so aggressively that customers leave, destroying the recurring revenue stream it was trying to monetize.",
+      "candidates": {
+        "near": "A game publisher extracts so much short-term spending from players that the community collapses and future revenue disappears.",
+        "far": "An owner kills the goose producing golden eggs in an attempt to obtain all future value immediately, eliminating the productive asset itself.",
+        "surface_trap": "A subscription service raises fees after adding features, and customers stay because they value the improved product more than the price increase.",
+        "unrelated": "A school changes the font on its course catalog."
+      }
+    },
+    {
+      "id": "sel_collective",
+      "family": "collective_action_externality",
+      "source": "Independent teams each consume extra capacity from a shared computing service because each team receives its own benefit while congestion costs are spread across everyone; collectively the service becomes unusable.",
+      "candidates": {
+        "near": "Drivers individually choose the route that looks fastest, but their combined choices increase congestion and make travel worse for everyone.",
+        "far": "Herders each gain by adding another animal to a shared pasture while depletion costs are distributed across the group; aggregate extraction destroys the commons.",
+        "surface_trap": "Independent software teams coordinate to share one testing cluster, reducing duplicate infrastructure and improving utilization for everyone.",
+        "unrelated": "A chess player studies an opponent's opening repertoire."
+      }
+    },
+    {
+      "id": "sel_adaptation",
+      "family": "path_dependence_adaptation",
+      "source": "A political organization remains optimized for an old media environment even after public communication shifts to a new platform; routines that once created strength now slow adaptation.",
+      "candidates": {
+        "near": "A newspaper remains organized around print distribution after readers move online, and its legacy assets make rapid reorganization costly.",
+        "far": "A photography incumbent remains tied to a profitable film-based business model while industry value shifts to digital imaging, turning legacy strengths into constraints.",
+        "surface_trap": "A political organization keeps the same media strategy because the old channel remains dominant and continues producing the best results.",
+        "unrelated": "A hospital replaces broken chairs in its waiting room."
+      }
+    },
+    {
+      "id": "sel_indirection",
+      "family": "strategic_indirection",
+      "source": "A cyber defender does not fight thousands of attacking devices one by one. It disables the command infrastructure they depend on, causing the distributed attack to lose coordination.",
+      "candidates": {
+        "near": "A security team blocks the central credential service that a bot network needs instead of responding separately to every malicious request.",
+        "far": "A relief army avoids the enemy's strongest siege line and threatens the attacker's vulnerable home base, forcing redeployment and relieving the original target indirectly.",
+        "surface_trap": "A cyber attacker hides malicious code inside a trusted file so defenders voluntarily carry the threat through their own security boundary.",
+        "unrelated": "A retailer changes the order of products on a shelf."
+      }
+    },
+    {
+      "id": "sel_proxy",
+      "family": "proxy_failure",
+      "source": "A university judges research quality mainly by paper count. Researchers respond by slicing work into many minimally distinct papers, increasing the measured output while weakening its connection to actual research quality.",
+      "candidates": {
+        "near": "A call center rewards agents almost entirely for calls handled per hour, so agents rush customers off the phone and the metric improves while service quality worsens.",
+        "far": "A bank imposes aggressive numerical cross-selling targets, and employees create unwanted accounts to satisfy the target even though genuine customer value and trust decline.",
+        "surface_trap": "A military theorist knows many written treatises about warfare but fails because abstract assumptions do not fit real battlefield conditions.",
+        "unrelated": "A farmer plants flowers along a fence."
+      }
+    }
+  ],
+  "no_match_controls": [
+    {
+      "id": "no_match_1",
+      "source": "A student chooses a blue notebook because it is on sale.",
+      "candidates": [
+        "A city replaces old water pipes after routine inspection.",
+        "A chess player studies an opening before a tournament.",
+        "A museum rotates an exhibit to another room."
+      ]
+    },
+    {
+      "id": "no_match_2",
+      "source": "A cafe changes the music volume in the afternoon.",
+      "candidates": [
+        "A telescope receives a software update.",
+        "A family moves dinner thirty minutes earlier.",
+        "A library orders replacement chairs."
+      ]
+    }
+  ]
+}
