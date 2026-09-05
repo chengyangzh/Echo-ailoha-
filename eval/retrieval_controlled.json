@@ -1,0 +1,327 @@
+{
+  "version": 1,
+  "description": "Controlled retrieval evaluation for Echo. Near/far items test structural recall; surface_trap_case_id creates a lexical or topical decoy with a different causal mechanism. Unrelated items test overmatching at a pre-registered score threshold.",
+  "no_match_threshold": 0.30,
+  "items": [
+    {
+      "id": "credibility_near_alarm",
+      "family": "credibility_depletion",
+      "condition": "near",
+      "source_situation": "A hospital monitoring system emits frequent low-value alarms. Nurses become desensitized and later respond too slowly to a real safety alarm.",
+      "frame": {
+        "roles": ["alerting system", "human operators", "real hazard"],
+        "goal": "preserve attention for important danger",
+        "strategy": "emit frequent warnings to avoid missing possible hazards",
+        "mechanisms": ["signaling", "credibility_decay", "feedback_loop"],
+        "turning_point": "operators learn that too many alarms have low value",
+        "outcome": "a genuinely important later warning receives too little response"
+      },
+      "gold_case_id": "alarm_fatigue",
+      "surface_trap_case_id": "ariadne_5_flight_501"
+    },
+    {
+      "id": "credibility_far_bank_alert",
+      "family": "credibility_depletion",
+      "condition": "far",
+      "source_situation": "A bank sends customers so many low-quality account fraud warnings that customers learn to ignore them; later a genuine account takeover warning is dismissed.",
+      "frame": {
+        "roles": ["signal sender", "signal receivers", "real threat"],
+        "goal": "preserve response to a genuinely important warning",
+        "strategy": "repeatedly use a warning channel for low-value alerts",
+        "mechanisms": ["signaling", "credibility_decay", "feedback_loop"],
+        "turning_point": "receivers update their belief that the warning channel is unreliable",
+        "outcome": "a later genuine warning is ignored"
+      },
+      "gold_case_id": "boy_who_cried_wolf",
+      "surface_trap_case_id": "wells_fargo_cross_sell"
+    },
+    {
+      "id": "local_global_near_chess",
+      "family": "local_global_optimization",
+      "condition": "near",
+      "source_situation": "A chess player voluntarily gives up a pawn because the local material loss creates development and positional compensation that matters more to the whole game.",
+      "frame": {
+        "roles": ["strategic actor", "opponent", "local resource"],
+        "goal": "improve the overall strategic position rather than maximize each local gain",
+        "strategy": "sacrifice a local resource for broader compensation",
+        "mechanisms": ["local_global_tradeoff", "short_term_long_term_tradeoff", "resource_matching"],
+        "turning_point": "the local sacrifice changes the global configuration of the contest",
+        "outcome": "the global positional gain can justify the local loss"
+      },
+      "gold_case_id": "queens_gambit_concept",
+      "surface_trap_case_id": "bundle_of_sticks"
+    },
+    {
+      "id": "local_global_far_bank_portfolio",
+      "family": "local_global_optimization",
+      "condition": "far",
+      "source_situation": "A bank deliberately accepts a loss on one customer segment so that scarce capital can be matched against more valuable opportunities across the full portfolio, improving aggregate return.",
+      "frame": {
+        "roles": ["strategic actor", "opponent", "unequal resources"],
+        "goal": "maximize aggregate outcome rather than every local outcome",
+        "strategy": "accept one local loss and rematch resources across opportunities",
+        "mechanisms": ["local_global_tradeoff", "resource_matching"],
+        "turning_point": "resources are reassigned across local contests instead of evaluated one by one",
+        "outcome": "a local sacrifice enables a better aggregate result"
+      },
+      "gold_case_id": "tian_ji_horse_racing",
+      "surface_trap_case_id": "wells_fargo_cross_sell"
+    },
+    {
+      "id": "model_world_near_software",
+      "family": "model_world_mismatch",
+      "condition": "near",
+      "source_situation": "A flight-control team reuses software whose numeric assumptions were safe on an older vehicle, but the new trajectory exceeds those assumptions and turns reuse into a system failure.",
+      "frame": {
+        "roles": ["reused software", "new operating environment", "safety-critical system"],
+        "goal": "reuse a proven component in a new system",
+        "strategy": "carry forward a model built under assumptions from the previous environment",
+        "mechanisms": ["model_world_mismatch", "path_dependence", "feedback_failure"],
+        "turning_point": "the new environment violates an inherited operating assumption",
+        "outcome": "a previously safe assumption becomes a system-level failure"
+      },
+      "gold_case_id": "ariadne_5_flight_501",
+      "surface_trap_case_id": "kodak_digital_transition"
+    },
+    {
+      "id": "model_world_far_bank_risk",
+      "family": "model_world_mismatch",
+      "condition": "far",
+      "source_situation": "A bank keeps using an elegant risk model calibrated to a stable mortgage market after the market regime changes. The model remains internally coherent but its assumptions no longer match the world.",
+      "frame": {
+        "roles": ["theoretical planner", "real environment"],
+        "goal": "apply abstract expertise successfully in practice",
+        "strategy": "rely on a formal model without sufficiently adapting to new feedback",
+        "mechanisms": ["model_world_mismatch", "feedback_failure", "overconfidence"],
+        "turning_point": "real conditions invalidate assumptions that were adequate in the old model",
+        "outcome": "the plan fails because theory does not adapt to the environment"
+      },
+      "gold_case_id": "paper_strategy_zhao_kuo",
+      "surface_trap_case_id": "wells_fargo_cross_sell"
+    },
+    {
+      "id": "resource_near_shared_resource",
+      "family": "resource_depletion",
+      "condition": "near",
+      "source_situation": "Each herder gains most of the benefit from adding another animal to a shared pasture while the depletion cost is spread across everyone, so individually attractive choices ruin the commons.",
+      "frame": {
+        "roles": ["individual users", "shared resource", "collective"],
+        "goal": "maximize individual benefit from a shared resource",
+        "strategy": "increase personal extraction while externalizing part of the depletion cost",
+        "mechanisms": ["collective_action", "resource_depletion", "perverse_incentive"],
+        "turning_point": "many individually rational extractions accumulate into system-level depletion",
+        "outcome": "the shared resource deteriorates for everyone"
+      },
+      "gold_case_id": "tragedy_of_the_commons",
+      "surface_trap_case_id": "bundle_of_sticks"
+    },
+    {
+      "id": "resource_far_subscription",
+      "family": "resource_depletion",
+      "condition": "far",
+      "source_situation": "A subscription company tries to pull years of customer value forward through aggressive fees and extraction, but in doing so destroys trust and retention, eliminating the recurring revenue stream it wanted to monetize.",
+      "frame": {
+        "roles": ["resource owner", "productive asset"],
+        "goal": "capture future gains immediately",
+        "strategy": "extract the expected recurring value too aggressively in the present",
+        "mechanisms": ["resource_depletion", "short_term_long_term_tradeoff", "self_defeating_strategy"],
+        "turning_point": "the extraction destroys the source of recurring value",
+        "outcome": "short-term extraction eliminates long-term returns"
+      },
+      "gold_case_id": "goose_golden_eggs",
+      "surface_trap_case_id": "wells_fargo_cross_sell"
+    },
+    {
+      "id": "collective_near_traffic",
+      "family": "collective_action_externality",
+      "condition": "near",
+      "source_situation": "After a new road opens, every driver chooses the route that appears fastest for them. Those individually sensible choices alter congestion and make everyone's equilibrium travel time worse.",
+      "frame": {
+        "roles": ["self-interested users", "shared network", "added option"],
+        "goal": "improve individual outcomes using available choices",
+        "strategy": "each user chooses the locally best option",
+        "mechanisms": ["local_global_tradeoff", "collective_action", "second_order_effect"],
+        "turning_point": "the added option changes everyone's behavior and therefore the shared system",
+        "outcome": "individually rational choices create a worse collective equilibrium"
+      },
+      "gold_case_id": "braess_paradox",
+      "surface_trap_case_id": "bundle_of_sticks"
+    },
+    {
+      "id": "collective_far_api_capacity",
+      "family": "collective_action_externality",
+      "condition": "far",
+      "source_situation": "Independent software teams each consume extra capacity from a shared API because the local benefit belongs to their own product while slowdown costs are spread across all teams; the shared service degrades.",
+      "frame": {
+        "roles": ["individual users", "shared resource", "collective"],
+        "goal": "maximize individual benefit from a shared resource",
+        "strategy": "increase personal extraction while distributing the system cost across others",
+        "mechanisms": ["collective_action", "resource_depletion", "perverse_incentive"],
+        "turning_point": "many individually rational uses accumulate into system-level depletion",
+        "outcome": "the shared resource deteriorates for everyone"
+      },
+      "gold_case_id": "tragedy_of_the_commons",
+      "surface_trap_case_id": "ariadne_5_flight_501"
+    },
+    {
+      "id": "adaptation_near_retail",
+      "family": "path_dependence_adaptation",
+      "condition": "near",
+      "source_situation": "A video-rental incumbent remains organized around stores and legacy revenue while customers move to subscription and streaming, making its existing asset base increasingly costly to abandon.",
+      "frame": {
+        "roles": ["incumbent firm", "legacy distribution model", "new entrant"],
+        "goal": "retain market position during a distribution shift",
+        "strategy": "continue relying on a legacy model while adapting incrementally",
+        "mechanisms": ["path_dependence", "adaptation_failure", "network_effect"],
+        "turning_point": "consumer behavior shifts away from the incumbent's existing asset base",
+        "outcome": "legacy infrastructure loses strategic value as the market reorganizes"
+      },
+      "gold_case_id": "blockbuster_netflix_transition",
+      "surface_trap_case_id": "wells_fargo_cross_sell"
+    },
+    {
+      "id": "adaptation_far_political_institution",
+      "family": "path_dependence_adaptation",
+      "condition": "far",
+      "source_situation": "A political institution built around an old media environment keeps exploiting procedures that once made it dominant, even after public communication moves to a new medium; yesterday's strength becomes a constraint on adaptation.",
+      "frame": {
+        "roles": ["incumbent organization", "legacy capability", "emerging environment"],
+        "goal": "preserve an established position while adapting to environmental change",
+        "strategy": "continue exploiting a strong legacy model while responding incrementally to a disruptive transition",
+        "mechanisms": ["path_dependence", "adaptation_failure", "short_term_long_term_tradeoff"],
+        "turning_point": "value migrates away from the incumbent's strongest legacy capabilities",
+        "outcome": "legacy strengths become constraints during the transition"
+      },
+      "gold_case_id": "kodak_digital_transition",
+      "surface_trap_case_id": "cuban_missile_crisis_blockade"
+    },
+    {
+      "id": "indirection_near_military",
+      "family": "strategic_indirection",
+      "condition": "near",
+      "source_situation": "A relief army avoids attacking the enemy's strongest siege line and instead threatens the attacker's vulnerable base, forcing the attacker to redeploy and relieving the original target indirectly.",
+      "frame": {
+        "roles": ["attacker", "besieged ally", "relief force"],
+        "goal": "relieve pressure on an ally",
+        "strategy": "attack a dependency or vulnerable base rather than the strongest defended point",
+        "mechanisms": ["strategic_indirection", "dependency", "second_order_effect"],
+        "turning_point": "the attacker must protect its own base instead of continuing the original offensive",
+        "outcome": "pressure on the original target is relieved indirectly"
+      },
+      "gold_case_id": "besiege_wei_rescue_zhao",
+      "surface_trap_case_id": "fabian_strategy"
+    },
+    {
+      "id": "indirection_far_botnet",
+      "family": "strategic_indirection",
+      "condition": "far",
+      "source_situation": "A cyber defender does not fight thousands of infected devices one by one. It disables the command infrastructure those devices depend on, changing the attacker's incentives and causing the distributed attack to lose coordination.",
+      "frame": {
+        "roles": ["attacker", "protected target", "relief force"],
+        "goal": "relieve pressure on the defended target",
+        "strategy": "attack a dependency or vulnerable control base instead of the strongest visible attack surface",
+        "mechanisms": ["strategic_indirection", "dependency", "second_order_effect"],
+        "turning_point": "the attacker loses or must protect a critical dependency",
+        "outcome": "pressure on the original target is relieved indirectly"
+      },
+      "gold_case_id": "besiege_wei_rescue_zhao",
+      "surface_trap_case_id": "trojan_horse"
+    },
+    {
+      "id": "proxy_near_sales",
+      "family": "proxy_failure",
+      "condition": "near",
+      "source_situation": "A bank rewards employees for hitting aggressive account and cross-selling targets. Employees optimize the measured number by creating unwanted accounts, so the metric rises while customer value falls.",
+      "frame": {
+        "roles": ["organization", "employees", "customers"],
+        "goal": "increase genuine customer adoption and organizational value",
+        "strategy": "set strong numerical targets and incentives",
+        "mechanisms": ["proxy_failure", "perverse_incentive", "feedback_loop"],
+        "turning_point": "employees optimize the measured proxy in ways that diverge from the real objective",
+        "outcome": "the metric improves while trust and underlying value are damaged"
+      },
+      "gold_case_id": "wells_fargo_cross_sell",
+      "surface_trap_case_id": "boy_who_cried_wolf"
+    },
+    {
+      "id": "proxy_far_academic_papers",
+      "family": "proxy_failure",
+      "condition": "far",
+      "source_situation": "A university judges research quality mainly by paper count. Researchers respond by slicing work into many minimally distinct papers, increasing the measured output while reducing the metric's connection to the underlying quality it was meant to represent.",
+      "frame": {
+        "roles": ["organization", "agents", "stakeholders"],
+        "goal": "increase genuine performance and quality",
+        "strategy": "use a simple numerical output target as the performance proxy",
+        "mechanisms": ["proxy_failure", "perverse_incentive", "feedback_loop"],
+        "turning_point": "agents optimize the measured target rather than the underlying objective",
+        "outcome": "measured performance rises while the true objective is damaged"
+      },
+      "gold_case_id": "wells_fargo_cross_sell",
+      "surface_trap_case_id": "paper_strategy_zhao_kuo"
+    },
+    {
+      "id": "unrelated_mix_1",
+      "family": "unrelated_control",
+      "condition": "unrelated",
+      "source_situation": "A museum changes the color of its membership cards while a weather station updates a calibration schedule. Neither action causally affects the other.",
+      "frame": {
+        "roles": ["independent actor A", "independent actor B"],
+        "goal": "perform unrelated routine updates",
+        "strategy": "make separate local changes",
+        "mechanisms": ["commitment", "proxy_failure", "selection_pressure"],
+        "turning_point": "there is no shared causal turning point",
+        "outcome": "two unrelated changes remain unrelated"
+      },
+      "gold_case_id": null,
+      "surface_trap_case_id": null
+    },
+    {
+      "id": "unrelated_mix_2",
+      "family": "unrelated_control",
+      "condition": "unrelated",
+      "source_situation": "A chef rearranges plates before service while an astronomy club changes its meeting room. The events share no dependency or causal mechanism.",
+      "frame": {
+        "roles": ["independent actor A", "independent actor B"],
+        "goal": "complete unrelated organizational changes",
+        "strategy": "make independent adjustments",
+        "mechanisms": ["network_effect", "resource_matching", "credibility_decay"],
+        "turning_point": "no action changes the incentives or state of the other actor",
+        "outcome": "the events remain causally independent"
+      },
+      "gold_case_id": null,
+      "surface_trap_case_id": null
+    },
+    {
+      "id": "unrelated_mix_3",
+      "family": "unrelated_control",
+      "condition": "unrelated",
+      "source_situation": "A library relabels shelves and a runner buys new socks. The two choices have no common feedback structure beyond both being ordinary decisions.",
+      "frame": {
+        "roles": ["independent decision maker A", "independent decision maker B"],
+        "goal": "make unrelated routine choices",
+        "strategy": "act independently",
+        "mechanisms": ["escalation_control", "adaptation", "information_asymmetry"],
+        "turning_point": "there is no causal interaction",
+        "outcome": "nothing links the two outcomes"
+      },
+      "gold_case_id": null,
+      "surface_trap_case_id": null
+    },
+    {
+      "id": "unrelated_mix_4",
+      "family": "unrelated_control",
+      "condition": "unrelated",
+      "source_situation": "A student chooses a blue notebook and a city trims trees on a different continent. Similar timing does not create a causal analogy.",
+      "frame": {
+        "roles": ["independent actor A", "independent actor B"],
+        "goal": "perform independent choices",
+        "strategy": "take unrelated actions",
+        "mechanisms": ["strategic_deception", "collective_action", "adaptation_failure"],
+        "turning_point": "there is no shared mechanism",
+        "outcome": "the outcomes are independent"
+      },
+      "gold_case_id": null,
+      "surface_trap_case_id": null
+    }
+  ]
+}
