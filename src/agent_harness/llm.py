@@ -6,7 +6,7 @@ import json
 import os
 from typing import Any
 
-from openai import RateLimitError
+from openai import APIStatusError, RateLimitError
 
 from .models import LLMDecision, Message, ToolCall
 
@@ -29,12 +29,12 @@ QUALITY CONTRACT — an analogy is acceptable only if it is clean, explanatory, 
 
 Echo has TWO legitimate answer paths:
 A) RETRIEVED CASE: search Core Atlas and/or Wikipedia, inspect evidence with read_case, then use the case only if it passes the quality contract.
-B) CONSTRUCTED ANALOGY: if retrieved cases are mediocre, construct a fresh cross-domain system analogy from general mechanisms such as flows and bottlenecks, transport networks, circulation, queues, feedback control, ecology, markets, immune systems, error correction, or other ordinary systems. Constructed analogies do not need to be famous or historically named; they do need a crisp mapping and a clear break. A circulation ↔ transit-network style analogy can be excellent when both genuinely share network flow, hubs, capacity, routing, and bottlenecks.
+B) CONSTRUCTED ANALOGY: if retrieved cases are mediocre, construct a fresh cross-domain system analogy from general mechanisms such as flows and bottlenecks, transport networks, circulation, queues, feedback control, ecology, markets, immune systems, error correction, or other ordinary systems. Constructed analogies do not need to be famous or historically named; they do need a crisp mapping and a clear break.
 
 Tool policy:
 - For a new concrete situation, use search; normally begin with one Core Atlas search to obtain inspectable candidates.
 - Core Atlas is a seed set, not the universe. If coverage is weak OR the best Core candidate requires an unsupported assumption, widen beyond Core rather than settling.
-- When widening to Wikipedia, search for an abstract mechanism or a hypothesized target concept/case, not a paraphrase full of the user's surface nouns. For example, search the mechanism pattern (trusted-insider appropriation, bottleneck cascade, coordination under scarce capacity), not the literal story wording.
+- When widening to Wikipedia, search for an abstract mechanism or a hypothesized target concept/case, not a paraphrase full of the user's surface nouns.
 - Wikipedia results are candidate discovery only. Inspect a page with read_case before treating it as retrieved evidence.
 - You may reject all retrieved candidates and use a constructed analogy instead. Never pretend a constructed analogy came from a tool.
 - Use calculator only when computation is useful.
@@ -48,7 +48,7 @@ Answer style:
 - Then give the shared mechanism in one short paragraph and one important analogy break.
 - Keep the default answer compact enough to explain aloud in an interview; do not turn a simple analogy into a report.
 - Avoid defensive meta-commentary such as "this is not advice" unless the distinction matters to the user's request.
-- If the analogy is constructed rather than retrieved, label it naturally (for example, "A cleaner constructed analogy is...").
+- If the analogy is constructed rather than retrieved, label it naturally.
 - Never claim exhaustive search. Do not fabricate tool results or reveal private chain-of-thought.
 """
 
@@ -64,16 +64,7 @@ class LLMClient(ABC):
 
 
 class ResponsesClient(LLMClient):
-    """One simple real-API boundary.
-
-    Echo deliberately uses fresh Responses API requests every iteration. Runtime owns
-    conversation state and tool observations, so no provider-specific continuation
-    protocol is needed.
-
-    Normal demo configuration is Groq:
-      GROQ_API_KEY=...
-      GROQ_MODEL=openai/gpt-oss-120b  # optional; quality-first default
-    """
+    """One simple real-API boundary with bounded request recovery."""
 
     BASE_URL = "https://api.groq.com/openai/v1"
 
@@ -87,31 +78,76 @@ class ResponsesClient(LLMClient):
             client = AsyncOpenAI(api_key=key, base_url=self.BASE_URL)
         self.client = client
         self.model = model or os.environ.get("GROQ_MODEL") or "openai/gpt-oss-120b"
+        self.fallback_model = os.environ.get("GROQ_FALLBACK_MODEL") or "openai/gpt-oss-20b"
 
-    async def _create_with_rate_limit_retry(self, **kwargs: Any) -> Any:
-        """Retry short rolling-window TPM limits inside the provider boundary.
+    @staticmethod
+    def _compact_input(items: Any, *, max_chars: int = 5_000) -> Any:
+        """Keep the newest user turn and newest observations when a provider rejects size."""
+        if not isinstance(items, list):
+            return items
 
-        Groq commonly returns a precise retry-after interval for transient TPM pressure.
-        A manual retry a few seconds later succeeds, so the Harness should absorb that
-        transient condition instead of making the user resubmit the same turn.
-        """
-        delays = (5.5, 9.0)
-        for attempt in range(len(delays) + 1):
+        def cost(item: Any) -> int:
+            return len(json.dumps(item, ensure_ascii=False, default=str))
+
+        newest_user = next(
+            (i for i in range(len(items) - 1, -1, -1) if isinstance(items[i], dict) and items[i].get("role") == "user"),
+            None,
+        )
+        keep: set[int] = {newest_user} if newest_user is not None else set()
+        used = sum(cost(items[i]) for i in keep)
+
+        for i in range(len(items) - 1, -1, -1):
+            if i in keep:
+                continue
+            c = cost(items[i])
+            if used + c <= max_chars:
+                keep.add(i)
+                used += c
+
+        return [items[i] for i in sorted(keep)]
+
+    async def _create_with_resilience(self, **kwargs: Any) -> Any:
+        """Absorb transient TPM pressure and one request-too-large failure."""
+        rate_delays = (5.5, 9.0)
+        rate_attempt = 0
+        compacted = False
+        fell_back = False
+
+        while True:
             try:
                 return await self.client.responses.create(**kwargs)
             except RateLimitError:
-                if attempt >= len(delays):
+                if rate_attempt >= len(rate_delays):
                     raise
-                await asyncio.sleep(delays[attempt])
-        raise RuntimeError("unreachable")
+                await asyncio.sleep(rate_delays[rate_attempt])
+                rate_attempt += 1
+            except APIStatusError as exc:
+                if exc.status_code == 413 and not compacted:
+                    kwargs = dict(kwargs)
+                    kwargs["input"] = self._compact_input(kwargs.get("input"), max_chars=5_000)
+                    kwargs["max_output_tokens"] = min(int(kwargs.get("max_output_tokens", 800)), 800)
+                    compacted = True
+                    continue
+                if exc.status_code == 413 and compacted and not fell_back and kwargs.get("model") != self.fallback_model:
+                    kwargs = dict(kwargs)
+                    kwargs["model"] = self.fallback_model
+                    kwargs["reasoning"] = {"effort": "medium"}
+                    kwargs["max_output_tokens"] = min(int(kwargs.get("max_output_tokens", 700)), 700)
+                    fell_back = True
+                    continue
+                raise
 
     async def decide(self, *, context: list[dict], tools: list[dict]) -> LLMDecision:
-        response = await self._create_with_rate_limit_retry(
+        # Tool-selection turns need less output/reasoning than final synthesis. This keeps
+        # the 120B quality advantage while staying under a strict 8k TPM service tier.
+        has_tools = bool(tools)
+        response = await self._create_with_resilience(
             model=self.model,
             instructions=SYSTEM_PROMPT,
             input=context,
             tools=tools,
-            reasoning={"effort": "high"},
+            reasoning={"effort": "medium" if has_tools else "high"},
+            max_output_tokens=800 if has_tools else 1_100,
         )
 
         calls: list[ToolCall] = []
@@ -148,7 +184,11 @@ class ResponsesClient(LLMClient):
             f"Existing summary:\n{old_summary or '(none)'}\n\nHistory:\n{transcript}\n\n"
             "Return only the compact summary."
         )
-        response = await self._create_with_rate_limit_retry(model=self.model, input=prompt)
+        response = await self._create_with_resilience(
+            model=self.fallback_model,
+            input=prompt,
+            max_output_tokens=450,
+        )
         return response.output_text.strip()
 
 
